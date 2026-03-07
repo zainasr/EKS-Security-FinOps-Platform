@@ -1,0 +1,21 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars.json
+crash.log
+override.tf
+override.tf.json
+
+# NEVER commit these
+*.pem
+*.key
+.env
+.env.*
+
+# AWS credentials (should never be here but just in case)
+.aws/
+
+# OS
+.DS_Store
