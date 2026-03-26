@@ -1,0 +1,39 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+  annotations:
+    description: "Enforces required labels for cost allocation and ownership"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels
+      # Parameters make this template reusable
+      # Same template, different required labels per constraint
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+
+        violation[{"msg": msg}] {
+          # Get required labels from constraint parameters
+          required := input.parameters.labels[_]
+
+          # Check if label is missing from resource
+          not input.review.object.metadata.labels[required]
+
+          msg := sprintf(
+            "Resource '%v' missing required label '%v'. Needed for cost allocation.",
+            [input.review.object.metadata.name, required]
+          )
+        }

@@ -1,0 +1,40 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequirenonroot
+  annotations:
+    description: "Blocks containers running as root (UID 0)"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireNonRoot
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequirenonroot
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # runAsUser: 0 = root explicitly set
+          container.securityContext.runAsUser == 0
+
+          msg := sprintf(
+            "Container '%v' runs as root (UID 0). Use a non-root user.",
+            [container.name]
+          )
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # runAsNonRoot: false = explicitly allowed to run as root
+          container.securityContext.runAsNonRoot == false
+
+          msg := sprintf(
+            "Container '%v' has runAsNonRoot: false. Set to true.",
+            [container.name]
+          )
+        }

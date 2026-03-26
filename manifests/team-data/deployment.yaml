@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-processor
+  namespace: team-data
+  labels:
+    app: data-processor
+    team: data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-processor
+  template:
+    metadata:
+      labels:
+        app: data-processor
+        team: data
+    spec:
+      containers:
+      - name: processor
+        image: python:3.11
+
+        command: ["python3", "-c"]
+        args:
+          - |
+            import time, os
+            print("Data processor running")
+            print(f"Running as UID: {os.getuid()}")
+            print(f"Hostname: {os.uname().nodename}")
+            # Simulate heavy processing
+            while True:
+              time.sleep(10)
+              print("Processing batch...")
+
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+
+        securityContext:
+          # VIOLATION 1: privileged container
+          # privileged: true = full host kernel access
+          # Worst possible setting — complete container escape possible
+          privileged: true
+
+          runAsUser: 0
+
+        volumeMounts:
+        - name: host-data
+          mountPath: /host-data
+
+      volumes:
+      - name: host-data
+        hostPath:
+          # VIOLATION 2: mounting host filesystem
+          # Can read /etc/passwd, /etc/shadow on the node
+          # Can read other pods' secrets if they wrote to disk
+          # Falco will alert on this immediately
+          path: /tmp
+          type: Directory

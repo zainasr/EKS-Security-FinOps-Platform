@@ -1,0 +1,28 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snoprivileged
+  annotations:
+    description: "Blocks privileged containers - prevents full host access"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoPrivileged
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snoprivileged
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # privileged: true is the worst security setting
+          container.securityContext.privileged == true
+
+          msg := sprintf(
+            "Container '%v' runs as privileged. This grants full host kernel access. CRITICAL violation.",
+            [container.name]
+          )
+        }

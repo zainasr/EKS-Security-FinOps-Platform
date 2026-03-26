@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-app
+  namespace: team-frontend
+  labels:
+    app: frontend-app
+    team: frontend
+    version: "1.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend-app
+  template:
+    metadata:
+      labels:
+        app: frontend-app
+        team: frontend
+        # Missing: cost-center label
+        # OPA will catch this → violation 1
+    spec:
+      containers:
+      - name: nginx
+        # VIOLATION 2: using latest tag
+        # OPA policy: no latest tags allowed
+        # Real risk: unpredictable deployments, hidden vulnerabilities
+        image: nginx:latest
+
+        ports:
+        - containerPort: 80
+
+        # VIOLATION 3: NO resource limits set
+        # OPA policy: limits required
+        # Real risk: noisy neighbor, node OOM, unpredictable cost
+        # resources: <-- intentionally commented out
+
+        # VIOLATION 4: running as root (nginx default)
+        # securityContext.runAsNonRoot not set
+        # Real risk: root in container + container escape = root on node
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: team-frontend
+  labels:
+    team: frontend
+spec:
+  selector:
+    app: frontend-app
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP

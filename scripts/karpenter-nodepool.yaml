@@ -1,0 +1,114 @@
+# ─────────────────────────────────────────────
+# EC2NodeClass v1 — AWS-specific node config
+# ─────────────────────────────────────────────
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  # role OR instanceProfile — we use instanceProfile
+  # because we pre-created it in Terraform (correct pattern)
+  # Karpenter does NOT manage the profile lifecycle
+  instanceProfile: "eks-security-lab-karpenter-node"
+
+  # amiSelectorTerms REQUIRED in v1 — cannot omit
+  # alias format: family@version
+  # al2@latest = latest EKS-optimized Amazon Linux 2
+  # matches our K8s 1.31 cluster automatically
+  amiSelectorTerms:
+    - alias: al2@latest
+
+  # Tag-based subnet discovery
+  # Matches tag we set in VPC module: karpenter.sh/discovery = cluster-name
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: eks-security-lab
+
+  # Tag-based security group discovery
+  # Matches tag we set on node SG in EKS module
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: eks-security-lab
+    - tags:
+        kubernetes.io/cluster/eks-security-lab: owned
+
+
+  # Node storage — encrypted, cost-efficient
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 20Gi
+        volumeType: gp3        # cheaper + faster than gp2
+        encrypted: true        # security requirement
+        deleteOnTermination: true
+
+  # IMDS hop limit = 1 in v1 default (more secure)
+  # Prevents pods from accessing instance metadata
+  # unless they explicitly need it via IRSA
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 1   # v1 default — containers cannot reach IMDS
+    httpTokens: required         # IMDSv2 only — no v1 tokens
+
+---
+# ─────────────────────────────────────────────
+# NodePool v1 — provisioning constraints
+# ─────────────────────────────────────────────
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: default
+spec:
+  template:
+    metadata:
+      labels:
+        nodepool: default
+    spec:
+      # v1: group replaces apiVersion in nodeClassRef
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+
+      # Toleration so Karpenter nodes can also run
+      # system components if needed
+      # But bootstrap nodes handle that via their taint
+      taints: []
+
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - t3.medium
+            - t3.large
+
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+            - us-east-1a
+            - us-east-1b
+
+  # Hard wallet protection — max 3 nodes ever
+  limits:
+    cpu: "6"
+    memory: 12Gi
+
+  disruption:
+    # v1: WhenEmptyOrUnderutilized replaces WhenUnderutilized
+    # More aggressive consolidation — removes underused AND empty nodes
+    consolidationPolicy: WhenEmptyOrUnderutilized
+
+    # v1: consolidateAfter is now REQUIRED (was optional in v1beta1)
+    # How long to wait before consolidating underutilized node
+    consolidateAfter: 30s
+
+    

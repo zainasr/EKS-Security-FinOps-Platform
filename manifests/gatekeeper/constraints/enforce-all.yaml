@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────
+# CONSTRAINT: Require Resource Limits
+# Applied to all workload namespaces
+# ─────────────────────────────────────────────
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireResourceLimits
+metadata:
+  name: require-resource-limits
+spec:
+  # enforcementAction:
+  #   deny  = block the request (production)
+  #   warn  = allow but warn (rollout phase)
+  #   dryrun = audit only, never block (testing)
+  enforcementAction: deny
+
+  match:
+    # Only check these resource types
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+
+    # Only enforce in these namespaces
+    # gatekeeper-system, kube-system are excluded
+    namespaceSelector:
+      matchLabels:
+        policy-enforcement: enabled
+
+---
+# ─────────────────────────────────────────────
+# CONSTRAINT: No Latest Tag
+# ─────────────────────────────────────────────
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoLatestTag
+metadata:
+  name: no-latest-tag
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        policy-enforcement: enabled
+
+---
+# ─────────────────────────────────────────────
+# CONSTRAINT: No Privileged Containers
+# ─────────────────────────────────────────────
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoPrivileged
+metadata:
+  name: no-privileged-containers
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        policy-enforcement: enabled
+
+---
+# ─────────────────────────────────────────────
+# CONSTRAINT: Require Non-Root
+# ─────────────────────────────────────────────
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireNonRoot
+metadata:
+  name: require-non-root
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        policy-enforcement: enabled
+
+---
+# ─────────────────────────────────────────────
+# CONSTRAINT: Required Labels
+# Uses parameters — same template, specific labels required
+# ─────────────────────────────────────────────
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: require-pod-labels
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaceSelector:
+      matchLabels:
+        policy-enforcement: enabled
+  parameters:
+    labels:
+      - "team"
+      - "cost-center"
+      - "app"

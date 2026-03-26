@@ -1,0 +1,65 @@
+# ─────────────────────────────────────────────
+# FRONTEND QUOTA — lightweight tier
+# ─────────────────────────────────────────────
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: frontend-quota
+  namespace: team-frontend
+spec:
+  hard:
+    # Compute
+    requests.cpu: "2"        # max 2 vCPU requested across all pods
+    requests.memory: "2Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+
+    # Object counts — prevent resource sprawl
+    count/pods: "20"
+    count/services: "10"
+    count/configmaps: "20"
+    count/secrets: "10"
+
+    # Storage — no large volumes for frontend
+    requests.storage: "10Gi"
+
+---
+# ─────────────────────────────────────────────
+# BACKEND QUOTA — API tier
+# ─────────────────────────────────────────────
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: backend-quota
+  namespace: team-backend
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: "4Gi"
+    limits.cpu: "8"
+    limits.memory: "8Gi"
+    count/pods: "20"
+    count/services: "10"
+    requests.storage: "20Gi"
+
+---
+# ─────────────────────────────────────────────
+# DATA QUOTA — heaviest tier
+# Intentionally larger — data workloads are expensive
+# Kubecost will show this namespace costs the most
+# ─────────────────────────────────────────────
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: data-quota
+  namespace: team-data
+spec:
+  hard:
+    requests.cpu: "6"
+    requests.memory: "8Gi"
+    limits.cpu: "12"
+    limits.memory: "16Gi"
+    count/pods: "20"
+    requests.storage: "50Gi"
+
+

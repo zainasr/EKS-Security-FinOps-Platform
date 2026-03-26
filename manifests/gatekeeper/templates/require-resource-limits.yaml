@@ -1,0 +1,48 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequireresourcelimits
+  annotations:
+    description: "Requires all containers to have CPU and memory limits"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireResourceLimits
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequireresourcelimits
+
+        # violation fires when this block is TRUE
+        violation[{"msg": msg}] {
+          # get every container (including initContainers)
+          container := input_containers[_]
+
+          # check cpu limit missing
+          not container.resources.limits.cpu
+
+          msg := sprintf(
+            "Container '%v' in '%v' is missing cpu limit. FinOps requires limits for cost control.",
+            [container.name, input.review.object.metadata.name]
+          )
+        }
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not container.resources.limits.memory
+          msg := sprintf(
+            "Container '%v' in '%v' is missing memory limit.",
+            [container.name, input.review.object.metadata.name]
+          )
+        }
+
+        # Helper — combines containers + initContainers
+        # Both types must have limits
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }

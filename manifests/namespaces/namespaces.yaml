@@ -1,0 +1,52 @@
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-frontend
+  labels:
+    # Kubecost uses this for cost allocation
+    team: frontend
+    cost-center: "cc-001"
+    environment: lab
+
+    # OPA/Gatekeeper uses this to scope policies
+    policy-enforcement: enabled
+
+    # Cilium uses this for network policy scoping
+    app.kubernetes.io/managed-by: platform-team
+
+    # Falco uses this to enrich alerts
+
+    security-tier: standard
+
+    
+---
+
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-backend
+  labels:
+    team: backend
+    cost-center: "cc-002"
+    environment: lab
+    policy-enforcement: enabled
+    security-tier: high      # higher security tier than frontend
+
+---
+# ─────────────────────────────────────────────
+# TEAM DATA NAMESPACE
+# ─────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-data
+  labels:
+    team: data
+    cost-center: "cc-003"
+    environment: lab
+    policy-enforcement: enabled
+    security-tier: critical  # most sensitive — data workloads
+
+

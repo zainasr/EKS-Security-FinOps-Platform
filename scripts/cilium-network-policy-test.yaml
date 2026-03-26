@@ -1,0 +1,22 @@
+# scripts/cilium-network-policy-test.yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backend-ingress-policy
+  namespace: default
+spec:
+  endpointSelector:
+    matchLabels:
+      app: team-backend   # applies to backend pods
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: team-frontend   # only frontend can call backend
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"    # only GET allowed — DELETE blocked
+                path: "/api/.*"

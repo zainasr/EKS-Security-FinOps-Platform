@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-custom-rules
+  namespace: falco
+  labels:
+    app: falco
+data:
+  custom-rules.yaml: |
+
+    # ─────────────────────────────────────────────
+    # RULE 1: Shell Spawned in Container
+    # ─────────────────────────────────────────────
+    - rule: Shell Spawned in Container (Lab)
+      desc: >
+        A shell was executed inside a running container.
+        Legitimate production containers should never need
+        interactive shells at runtime. This is the #1 indicator
+        of: kubectl exec abuse, post-exploitation, container escape.
+      condition: >
+        spawned_process
+        and container
+        and proc.name in (bash, sh, zsh, fish, dash)
+        and not proc.pname in (bash, sh, zsh)
+      output: >
+        SECURITY ALERT - Shell in container
+        namespace=%k8s.ns.name
+        pod=%k8s.pod.name
+        container=%container.name
+        image=%container.image.repository
+        shell=%proc.name
+        parent=%proc.pname
+        user=%user.name
+        cmdline=%proc.cmdline
+      priority: WARNING
+      tags: [container, shell, mitre_execution, lab]
+
+    # ─────────────────────────────────────────────
+    # RULE 2: Service Account Token Read
+    # ─────────────────────────────────────────────
+    - rule: Service Account Token Read (Lab)
+      desc: >
+        A process read the Kubernetes service account token.
+        This token allows the pod to authenticate to the K8s API.
+        Attackers steal this token to escalate privileges:
+        if the pod has ClusterAdmin → full cluster takeover.
+      condition: >
+        open_read
+        and container
+        and fd.name contains "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        and not proc.name in (known_sa_readers)
+      output: >
+        CRITICAL - Service account token accessed
+        namespace=%k8s.ns.name
+        pod=%k8s.pod.name
+        container=%container.name
+        process=%proc.name
+        cmdline=%proc.cmdline
+        user=%user.name
+      priority: CRITICAL
+      tags: [container, credentials, mitre_credential_access, lab]
+
+    # ─────────────────────────────────────────────
+    # RULE 3: AWS Metadata Service Access
+    # ─────────────────────────────────────────────
+    - rule: AWS Metadata Service Access (Lab)
+      desc: >
+        A container attempted to access the AWS IMDS endpoint.
+        169.254.169.254 provides: IAM role credentials,
+        instance identity, user data (often has secrets).
+        Our Cilium hop limit=1 blocks most pods BUT
+        Falco adds detection as defense in depth.
+        Real attacks: CapitalOne breach used SSRF to steal
+        IMDS credentials from a misconfigured EC2.
+      condition: >
+        (syscall.type=connect or syscall.type=sendto)
+        and container
+        and fd.sip = "169.254.169.254"
+      output: >
+        CRITICAL - AWS metadata service access attempt
+        namespace=%k8s.ns.name
+        pod=%k8s.pod.name
+        container=%container.name
+        image=%container.image.repository
+        process=%proc.name
+        cmdline=%proc.cmdline
+      priority: CRITICAL
+      tags: [container, cloud, aws, mitre_credential_access, lab]
+
+    # ─────────────────────────────────────────────
+    # RULE 4: team-data Unexpected Outbound
+    # ─────────────────────────────────────────────
+    - rule: team-data Outbound Internet Connection (Lab)
+      desc: >
+        The team-data namespace made an outbound internet connection.
+        Data processing pods should ONLY talk to internal services.
+        External connections = potential data exfiltration.
+        This rule is namespace-specific — other teams may legitimately
+        call external APIs but team-data should never.
+      condition: >
+        (syscall.type=connect or syscall.type=sendto)
+        and container
+        and k8s.ns.name = "team-data"
+        and not fd.sip in (rfc_1918_addresses)
+        and not fd.sip = "127.0.0.1"
+      output: >
+        HIGH - team-data namespace outbound internet detected
+        namespace=%k8s.ns.name
+        pod=%k8s.pod.name
+        destination_ip=%fd.sip
+        destination_port=%fd.sport
+        process=%proc.name
+        cmdline=%proc.cmdline
+      priority: ERROR
+      tags: [network, exfiltration, team-data, lab]
+
+    # ─────────────────────────────────────────────
+    # RULE 5: Write to /etc in Container
+    # ─────────────────────────────────────────────
+    - rule: Write to /etc in Container (Lab)
+      desc: >
+        A process wrote to /etc inside a container.
+        /etc contains: passwd, shadow, hosts, cron, sudoers.
+        Writing here = persistence mechanism or privilege escalation.
+        Legitimate apps should use app-specific config paths.
+      condition: >
+        open_write
+        and container
+        and fd.directory = "/etc"
+        and not proc.name in (package_mgmt_binaries)
+      output: >
+        HIGH - Write to /etc detected in container
+        namespace=%k8s.ns.name
+        pod=%k8s.pod.name
+        file=%fd.name
+        process=%proc.name
+        cmdline=%proc.cmdline
+        user=%user.name
+      priority: ERROR
+      tags: [container, filesystem, mitre_persistence, lab]
+
+    # ─────────────────────────────────────────────
+    # RULE 6: Crypto Mining Detection
+    # ─────────────────────────────────────────────
+    - rule: Crypto Mining Process (Lab)
+      desc: >
+        Known crypto mining process names detected.
+        Most cloud compromises end with the attacker running
+        a miner on your nodes — direct financial impact.
+        Karpenter auto-scales = attacker gets more compute automatically.
+        This rule is your financial protection.
+      condition: >
+        spawned_process
+        and container
+        and proc.name in (xmrig, minerd, cpuminer, ethminer,
+                          cgminer, bfgminer, cryptonight)
+      output: >
+        CRITICAL - Crypto mining process detected
+        namespace=%k8s.ns.name
+        pod=%k8s.pod.name
+        container=%container.name
+        image=%container.image.repository
+        process=%proc.name
+        cmdline=%proc.cmdline
+      priority: CRITICAL
+      tags: [container, crypto_mining, financial_impact, lab]
+
+    # ─────────────────────────────────────────────
+    # LIST: Known safe service account readers
+    # Define processes allowed to read SA token
+    # ─────────────────────────────────────────────
+    - list: known_sa_readers
+      items: [nginx, python3, node, java]
+
+    # ─────────────────────────────────────────────
+    # MACRO: RFC 1918 private addresses
+    # Used to identify internal vs external traffic
+    # ─────────────────────────────────────────────
+    - macro: rfc_1918_addresses
+      condition: >
+        fd.sip startswith "10."
+        or fd.sip startswith "172.16."
+        or fd.sip startswith "192.168."

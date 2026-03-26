@@ -1,0 +1,41 @@
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8snolatesttag
+  annotations:
+    description: "Blocks container images using :latest tag or no tag"
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoLatestTag
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snolatesttag
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # endswith checks if image ends with :latest
+          endswith(container.image, ":latest")
+
+          msg := sprintf(
+            "Container '%v' uses ':latest' tag on image '%v'. Pin to explicit version.",
+            [container.name, container.image]
+          )
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+
+          # contains checks if there is NO colon = no tag at all
+          # "nginx" has no tag = also blocked
+          not contains(container.image, ":")
+
+          msg := sprintf(
+            "Container '%v' has no image tag on '%v'. Pin to explicit version.",
+            [container.name, container.image]
+          )
+        }

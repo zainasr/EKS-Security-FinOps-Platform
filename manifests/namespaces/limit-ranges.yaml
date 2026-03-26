@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: frontend-limits
+  namespace: team-frontend
+spec:
+  limits:
+  - type: Container
+    # Default injected if developer sets nothing
+    default:
+      cpu: "200m"
+      memory: "256Mi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "128Mi"
+    # Hard maximum per container — cannot exceed
+    max:
+      cpu: "1"
+      memory: "1Gi"
+    # Minimum — prevents zero-resource gaming
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: backend-limits
+  namespace: team-backend
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: "500m"
+      memory: "512Mi"
+    defaultRequest:
+      cpu: "250m"
+      memory: "256Mi"
+    max:
+      cpu: "2"
+      memory: "2Gi"
+    min:
+      cpu: "50m"
+      memory: "64Mi"
+
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: data-limits
+  namespace: team-data
+spec:
+  limits:
+  - type: Container
+    default:
+      cpu: "1"
+      memory: "1Gi"
+    defaultRequest:
+      cpu: "500m"
+      memory: "512Mi"
+    max:
+      cpu: "4"        # data pods can be larger
+      memory: "4Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
