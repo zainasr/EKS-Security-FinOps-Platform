@@ -79,11 +79,24 @@ aws-vault exec --no-session <profile> -- terraform apply
 aws eks update-kubeconfig --name eks-security-lab --region us-east-1
 
 # Install platform components (in order)
-helm install karpenter oci://public.ecr.aws/karpenter/karpenter ...
-helm install cilium cilium/cilium ...
-helm install gatekeeper gatekeeper/gatekeeper ...
-helm install falco falcosecurity/falco ...
-helm install kubecost oci://public.ecr.aws/kubecost/cost-analyzer ...
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --namespace karpenter --create-namespace \
+  --version 1.1.0 \
+  --set settings.clusterName=eks-security-lab \
+  --set settings.interruptionQueue=eks-security-lab-karpenter
+helm upgrade --install cilium cilium/cilium \
+  --namespace kube-system \
+  --version 1.18.6
+helm upgrade --install gatekeeper gatekeeper/gatekeeper \
+  --namespace gatekeeper-system --create-namespace \
+  --version 3.18.0 \
+  --set hostNetwork=true
+helm upgrade --install falco falcosecurity/falco \
+  --namespace falco --create-namespace \
+  --version 0.42.1
+helm upgrade --install kubecost oci://public.ecr.aws/kubecost/cost-analyzer \
+  --namespace kubecost --create-namespace \
+  --version 2.8.6
 
 # Apply policies and workloads
 kubectl apply -f manifests/namespaces/
@@ -154,3 +167,14 @@ kubectl logs -n falco -l app.kubernetes.io/name=falco -f
 ## License
 
 MIT 
+
+## Next Steps
+
+- Run the validation flow in `docs/runbook.md` to verify policy enforcement and runtime detection.
+- Capture baseline and post-load cost views in Kubecost for each team namespace.
+- Review and tune Gatekeeper constraints for your organization's security posture.
+- Enable CI checks for Terraform plan, Kubernetes manifest validation, and policy testing.
+
+## Notes
+
+This lab is intentionally opinionated to demonstrate a practical security + FinOps foundation on EKS. Adapt instance types, scaling policies, and constraints to match your workload and compliance requirements before production use.
